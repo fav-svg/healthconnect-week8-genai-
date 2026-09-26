@@ -1,0 +1,719 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 196
+        },
+        "id": "-j9bTCx81Cvl",
+        "outputId": "c694593a-9100-4948-e776-ed54c05a7be9"
+      },
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "SyntaxError",
+          "evalue": "unterminated string literal (detected at line 1) (921119322.py, line 1)",
+          "traceback": [
+            "\u001b[0;36m  File \u001b[0;32m\"/tmp/ipykernel_1208/921119322.py\"\u001b[0;36m, line \u001b[0;32m1\u001b[0m\n\u001b[0;31m    I'mimport re\u001b[0m\n\u001b[0m     ^\u001b[0m\n\u001b[0;31mSyntaxError\u001b[0m\u001b[0;31m:\u001b[0m unterminated string literal (detected at line 1)\n"
+          ]
+        }
+      ],
+      "source": [
+        "I'mimport re\n",
+        "\n",
+        "knowledge_base = {\n",
+        "    \"locations_hours\": {\"patient_text\": \"HealthConnect Clinic has two locations: Central Clinic at 14 Wellness Avenue, and Lakeside Clinic at 8 Care Street. Open Mon-Fri 8AM-6PM, Sat 9AM-2PM.\", \"internal_note\": None},\n",
+        "    \"services\": {\"patient_text\": \"HealthConnect offers general outpatient consultations, follow-up consultations, selected specialist consultations by appointment, diagnostic and lab services by referral, and preventive wellness consultations.\", \"internal_note\": \"Do not determine whether a patient needs a particular service.\"},\n",
+        "    \"booking\": {\"patient_text\": \"You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference.\", \"internal_note\": None},\n",
+        "    \"rescheduling\": {\"patient_text\": \"Contact the clinic as early as possible to reschedule or cancel. Include your appointment reference. Rescheduling is subject to availability.\", \"internal_note\": None},\n",
+        "    \"late_arrival\": {\"patient_text\": \"Arrive at least 15 minutes early. Late arrivals may need to wait or be rescheduled. Contact reception if expecting to be late.\", \"internal_note\": None},\n",
+        "    \"what_to_bring\": {\"patient_text\": \"Bring valid ID where required, your appointment reference, and any relevant referral documents.\", \"internal_note\": \"Do not give personalised clinical preparation instructions.\"},\n",
+        "    \"billing\": {\"patient_text\": \"Payment requirements vary by service. Contact reception for accepted payment methods and estimated charges.\", \"internal_note\": \"Do not invent prices or insurance coverage.\"},\n",
+        "}\n",
+        "\n",
+        "emergency_keywords = [\"chest pain\", \"chest hurts\", \"can't breathe\", \"cant breathe\", \"cannot breathe\", \"difficulty breathing\", \"trouble breathing\", \"bleeding heavily\", \"unconscious\", \"collapsed\", \"severe pain\", \"emergency\", \"dying\", \"suicidal\", \"overdose\", \"stroke\", \"heart attack\"]\n",
+        "medical_keywords = [\"diagnose\", \"diagnosis\", \"what's wrong with me\", \"whats wrong with me\", \"what is wrong with me\", \"symptom\", \"symptoms\", \"headache\", \"fever\", \"pain\", \"sick\", \"illness\", \"medication\", \"medicine\", \"prescribe\", \"prescription\", \"treatment\", \"dosage\", \"is it serious\", \"do i have\"]\n",
+        "topic_keywords = {\n",
+        "    \"locations_hours\": [\"open\", \"hours\", \"time\", \"location\", \"address\", \"where\", \"saturday\", \"sunday\", \"close\"],\n",
+        "    \"services\": [\"service\", \"offer\", \"consultation\", \"specialist\", \"lab\", \"wellness\", \"checkup\"],\n",
+        "    \"booking\": [\"book\", \"appointment\", \"schedule\", \"reserve\", \"how do i book\"],\n",
+        "    \"rescheduling\": [\"reschedule\", \"cancel\", \"cancellation\", \"change my appointment\", \"move my appointment\"],\n",
+        "    \"late_arrival\": [\"late\", \"arrive\", \"arrival\", \"missed\", \"no-show\", \"no show\"],\n",
+        "    \"what_to_bring\": [\"bring\", \"need to bring\", \"what should i bring\", \"id\", \"identification\", \"documents\"],\n",
+        "    \"billing\": [\"price\", \"cost\", \"pay\", \"payment\", \"insurance\", \"bill\", \"billing\", \"how much\"],\n",
+        "}\n",
+        "\n",
+        "def classify(query):\n",
+        "    q = query.lower()\n",
+        "    for kw in emergency_keywords:\n",
+        "        if kw in q: return \"emergency\"\n",
+        "    for kw in medical_keywords:\n",
+        "        if kw in q: return \"medical\"\n",
+        "    return \"in_scope_candidate\"\n",
+        "\n",
+        "def retrieve(query):\n",
+        "    q = query.lower()\n",
+        "    scores = {t: sum(1 for kw in kws if kw in q) for t, kws in topic_keywords.items()}\n",
+        "    scores = {k: v for k, v in scores.items() if v > 0}\n",
+        "    return max(scores, key=scores.get) if scores else None\n",
+        "\n",
+        "print(\"Core logic ready\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "REMINDER_TIP = (\"Making sure the clinic has a way to remind you (especially by SMS) is strongly \"\n",
+        "                 \"linked to fewer missed appointments, based on HealthConnect's own appointment data — \"\n",
+        "                 \"so it's worth confirming your preferred reminder channel when you book.\")\n",
+        "\n",
+        "reminder_keywords = [\"reminder\", \"remind me\", \"which reminder\", \"best way to remind\", \"notify me\"]\n",
+        "\n",
+        "def respond_week6(query):\n",
+        "    category = classify(query)\n",
+        "\n",
+        "    if category == \"emergency\":\n",
+        "        return {\"query\": query, \"response\": \"This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\"}\n",
+        "    elif category == \"medical\":\n",
+        "        return {\"query\": query, \"response\": \"I'm not able to assess symptoms, diagnose conditions, or give medical advice. I'd recommend speaking with a qualified healthcare professional.\"}\n",
+        "\n",
+        "    q = query.lower()\n",
+        "    is_reminder_question = any(kw in q for kw in reminder_keywords)\n",
+        "    topic = retrieve(query)\n",
+        "\n",
+        "    if topic is None:\n",
+        "        if is_reminder_question:\n",
+        "            return {\"query\": query, \"response\": \"Reminder preferences aren't something I can set for you directly, but here's something useful: \" + REMINDER_TIP}\n",
+        "        return {\"query\": query, \"response\": \"I don't have information on that. I'd recommend contacting clinic reception directly.\"}\n",
+        "\n",
+        "    response = \"Here's what I can tell you: \" + knowledge_base[topic][\"patient_text\"]\n",
+        "    if topic == \"booking\" or is_reminder_question:\n",
+        "        response += \" \" + REMINDER_TIP\n",
+        "\n",
+        "    return {\"query\": query, \"response\": response}\n",
+        "\n",
+        "print(\"Week 6 respond function ready\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "XCZunooH3a1v",
+        "outputId": "bb7b73fa-eb6a-4951-9b28-4deecba4e84a"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Week 6 respond function ready\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def respond_week5(query):\n",
+        "    category = classify(query)\n",
+        "    if category == \"emergency\":\n",
+        "        return {\"query\": query, \"response\": \"This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\"}\n",
+        "    elif category == \"medical\":\n",
+        "        return {\"query\": query, \"response\": \"I'm not able to assess symptoms, diagnose conditions, or give medical advice. I'd recommend speaking with a qualified healthcare professional.\"}\n",
+        "    topic = retrieve(query)\n",
+        "    if topic is None:\n",
+        "        return {\"query\": query, \"response\": \"I don't have information on that. I'd recommend contacting clinic reception directly.\"}\n",
+        "    return {\"query\": query, \"response\": \"Here's what I can tell you: \" + knowledge_base[topic][\"patient_text\"]}\n",
+        "\n",
+        "\n",
+        "test_queries = [\n",
+        "    \"How do I book an appointment?\",\n",
+        "    \"Which reminder channel should I use?\",\n",
+        "]\n",
+        "\n",
+        "print(\"BEFORE (Week 5)\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in test_queries:\n",
+        "    r = respond_week5(q)\n",
+        "    print(\"Q:\", r[\"query\"])\n",
+        "    print(\"A:\", r[\"response\"])\n",
+        "    print()\n",
+        "\n",
+        "print(\"AFTER (Week 6 — integrated with Data Analytics findings)\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in test_queries:\n",
+        "    r = respond_week6(q)\n",
+        "    print(\"Q:\", r[\"query\"])\n",
+        "    print(\"A:\", r[\"response\"])\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 803
+        },
+        "id": "2eySATkV3mRS",
+        "outputId": "3b63065f-d538-44c6-ea9d-98cd210d26f7"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "BEFORE (Week 5)\n",
+            "--------------------------------------------------\n"
+          ]
+        },
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "name 'classify' is not defined",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m/tmp/ipykernel_1208/709173353.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     19\u001b[0m \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"-\"\u001b[0m \u001b[0;34m*\u001b[0m \u001b[0;36m50\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     20\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mq\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mtest_queries\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 21\u001b[0;31m     \u001b[0mr\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mrespond_week5\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mq\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     22\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"Q:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mr\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"query\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     23\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"A:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mr\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"response\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/tmp/ipykernel_1208/709173353.py\u001b[0m in \u001b[0;36mrespond_week5\u001b[0;34m(query)\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mrespond_week5\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 2\u001b[0;31m     \u001b[0mcategory\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mclassify\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      3\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0mcategory\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"emergency\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      4\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0;34m{\u001b[0m\u001b[0;34m\"query\"\u001b[0m\u001b[0;34m:\u001b[0m \u001b[0mquery\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m\"response\"\u001b[0m\u001b[0;34m:\u001b[0m \u001b[0;34m\"This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\"\u001b[0m\u001b[0;34m}\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m     \u001b[0;32melif\u001b[0m \u001b[0mcategory\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"medical\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'classify' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "week5_suite = [\n",
+        "    \"What time do you open on Saturday?\",\n",
+        "    \"How do I book an appointment?\",\n",
+        "    \"What should I bring to my appointment?\",\n",
+        "    \"I need to sort out my appointment\",\n",
+        "    \"Can you help me with something?\",\n",
+        "    \"Can you book this appointment for me right now?\",\n",
+        "    \"What is the weather like today?\",\n",
+        "    \"I have a fever, what should I do?\",\n",
+        "    \"Can you tell me what is wrong with me?\",\n",
+        "    \"I think I am having a stroke\",\n",
+        "    \"My chest hurts and I cannot breathe\",\n",
+        "    \"How much does a consultation cost?\",\n",
+        "    \"Do you have a location in Ikeja?\",\n",
+        "]\n",
+        "\n",
+        "print(\"REGRESSION CHECK\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in week5_suite:\n",
+        "    r = respond_week6(q)\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"A:\", r[\"response\"][:80], \"...\")\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 613
+        },
+        "id": "49qceGR-4WiA",
+        "outputId": "dec7ddfa-c32f-4d2e-ec5f-d71ec4caeb03"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "REGRESSION CHECK\n",
+            "--------------------------------------------------\n"
+          ]
+        },
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "name 'classify' is not defined",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m/tmp/ipykernel_1208/2061163477.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     18\u001b[0m \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"-\"\u001b[0m \u001b[0;34m*\u001b[0m \u001b[0;36m50\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     19\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mq\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mweek5_suite\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 20\u001b[0;31m     \u001b[0mr\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mrespond_week6\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mq\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     21\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"Q:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mq\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     22\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"A:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mr\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"response\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;36m80\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m\"...\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/tmp/ipykernel_1208/1660481054.py\u001b[0m in \u001b[0;36mrespond_week6\u001b[0;34m(query)\u001b[0m\n\u001b[1;32m      6\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      7\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mrespond_week6\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 8\u001b[0;31m     \u001b[0mcategory\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mclassify\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      9\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     10\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0mcategory\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"emergency\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'classify' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "week6_new_cases = [\n",
+        "    \"What time do you open?\",\n",
+        "    \"What are your opening hours?\",\n",
+        "    \"When is the clinic open?\",\n",
+        "    \"Do you do pediatric consultations?\",\n",
+        "    \"Can I get a same-day appointment?\",\n",
+        "    \"Which reminder channel should I use?\",\n",
+        "    \"Please confirm my appointment right now\",\n",
+        "]\n",
+        "\n",
+        "print(\"NEW WEEK 6 TEST SCENARIOS\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in week6_new_cases:\n",
+        "    r = respond_week6(q)\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"A:\", r[\"response\"])\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 613
+        },
+        "id": "NPgERm3Q4jZK",
+        "outputId": "c5790e24-b60b-42c6-b5c1-a98573d4623a"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "NEW WEEK 6 TEST SCENARIOS\n",
+            "--------------------------------------------------\n"
+          ]
+        },
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "name 'classify' is not defined",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m/tmp/ipykernel_1208/3706249889.py\u001b[0m in \u001b[0;36m<cell line: 0>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     12\u001b[0m \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"-\"\u001b[0m \u001b[0;34m*\u001b[0m \u001b[0;36m50\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     13\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mq\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mweek6_new_cases\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 14\u001b[0;31m     \u001b[0mr\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mrespond_week6\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mq\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     15\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"Q:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mq\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     16\u001b[0m     \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"A:\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mr\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"response\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/tmp/ipykernel_1208/1660481054.py\u001b[0m in \u001b[0;36mrespond_week6\u001b[0;34m(query)\u001b[0m\n\u001b[1;32m      6\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      7\u001b[0m \u001b[0;32mdef\u001b[0m \u001b[0mrespond_week6\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 8\u001b[0;31m     \u001b[0mcategory\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mclassify\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mquery\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      9\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     10\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0mcategory\u001b[0m \u001b[0;34m==\u001b[0m \u001b[0;34m\"emergency\"\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'classify' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import re\n",
+        "\n",
+        "knowledge_base = {\n",
+        "    \"locations_hours\": {\"patient_text\": \"HealthConnect Clinic has two locations: Central Clinic at 14 Wellness Avenue, and Lakeside Clinic at 8 Care Street. Open Mon-Fri 8AM-6PM, Sat 9AM-2PM.\", \"internal_note\": None},\n",
+        "    \"services\": {\"patient_text\": \"HealthConnect offers general outpatient consultations, follow-up consultations, selected specialist consultations by appointment, diagnostic and lab services by referral, and preventive wellness consultations.\", \"internal_note\": \"Do not determine whether a patient needs a particular service.\"},\n",
+        "    \"booking\": {\"patient_text\": \"You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference.\", \"internal_note\": None},\n",
+        "    \"rescheduling\": {\"patient_text\": \"Contact the clinic as early as possible to reschedule or cancel. Include your appointment reference. Rescheduling is subject to availability.\", \"internal_note\": None},\n",
+        "    \"late_arrival\": {\"patient_text\": \"Arrive at least 15 minutes early. Late arrivals may need to wait or be rescheduled. Contact reception if expecting to be late.\", \"internal_note\": None},\n",
+        "    \"what_to_bring\": {\"patient_text\": \"Bring valid ID where required, your appointment reference, and any relevant referral documents.\", \"internal_note\": \"Do not give personalised clinical preparation instructions.\"},\n",
+        "    \"billing\": {\"patient_text\": \"Payment requirements vary by service. Contact reception for accepted payment methods and estimated charges.\", \"internal_note\": \"Do not invent prices or insurance coverage.\"},\n",
+        "}\n",
+        "\n",
+        "emergency_keywords = [\"chest pain\", \"chest hurts\", \"can't breathe\", \"cant breathe\", \"cannot breathe\", \"difficulty breathing\", \"trouble breathing\", \"bleeding heavily\", \"unconscious\", \"collapsed\", \"severe pain\", \"emergency\", \"dying\", \"suicidal\", \"overdose\", \"stroke\", \"heart attack\"]\n",
+        "medical_keywords = [\"diagnose\", \"diagnosis\", \"what's wrong with me\", \"whats wrong with me\", \"what is wrong with me\", \"symptom\", \"symptoms\", \"headache\", \"fever\", \"pain\", \"sick\", \"illness\", \"medication\", \"medicine\", \"prescribe\", \"prescription\", \"treatment\", \"dosage\", \"is it serious\", \"do i have\"]\n",
+        "topic_keywords = {\n",
+        "    \"locations_hours\": [\"open\", \"hours\", \"time\", \"location\", \"address\", \"where\", \"saturday\", \"sunday\", \"close\"],\n",
+        "    \"services\": [\"service\", \"offer\", \"consultation\", \"specialist\", \"lab\", \"wellness\", \"checkup\"],\n",
+        "    \"booking\": [\"book\", \"appointment\", \"schedule\", \"reserve\", \"how do i book\"],\n",
+        "    \"rescheduling\": [\"reschedule\", \"cancel\", \"cancellation\", \"change my appointment\", \"move my appointment\"],\n",
+        "    \"late_arrival\": [\"late\", \"arrive\", \"arrival\", \"missed\", \"no-show\", \"no show\"],\n",
+        "    \"what_to_bring\": [\"bring\", \"need to bring\", \"what should i bring\", \"id\", \"identification\", \"documents\"],\n",
+        "    \"billing\": [\"price\", \"cost\", \"pay\", \"payment\", \"insurance\", \"bill\", \"billing\", \"how much\"],\n",
+        "}\n",
+        "\n",
+        "def classify(query):\n",
+        "    q = query.lower()\n",
+        "    for kw in emergency_keywords:\n",
+        "        if kw in q: return \"emergency\"\n",
+        "    for kw in medical_keywords:\n",
+        "        if kw in q: return \"medical\"\n",
+        "    return \"in_scope_candidate\"\n",
+        "\n",
+        "def retrieve(query):\n",
+        "    q = query.lower()\n",
+        "    scores = {t: sum(1 for kw in kws if kw in q) for t, kws in topic_keywords.items()}\n",
+        "    scores = {k: v for k, v in scores.items() if v > 0}\n",
+        "    return max(scores, key=scores.get) if scores else None\n",
+        "\n",
+        "print(\"Core logic ready\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "W7XuC2md0Gpq",
+        "outputId": "a14c3aa1-df7c-4d33-d943-45c8615d3307"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Core logic ready\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "reminder_keywords = [\"reminder\", \"remind me\", \"which reminder\", \"best way to remind\", \"notify me\"]\n",
+        "REMINDER_TIP = (\"Based on HealthConnect's own appointment data, patients reminded by SMS had the \"\n",
+        "                 \"lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) \"\n",
+        "                 \"— so it's worth confirming your preferred reminder channel when you book.\")\n",
+        "\n",
+        "action_request_keywords = [\n",
+        "    \"book this\", \"book it\", \"book my\", \"book me\", \"confirm my appointment\",\n",
+        "    \"make the appointment\", \"reserve me\", \"schedule me\", \"set up my appointment\",\n",
+        "    \"do it for me\", \"right now\", \"for me now\",\n",
+        "]\n",
+        "\n",
+        "unconfirmed_specifics = {\n",
+        "    \"pediatric\": \"pediatric or child-specific consultations\",\n",
+        "    \"paediatric\": \"pediatric or child-specific consultations\",\n",
+        "    \"same-day\": \"same-day appointment availability\",\n",
+        "    \"same day\": \"same-day appointment availability\",\n",
+        "    \"emergency slot\": \"emergency/walk-in appointment slots\",\n",
+        "    \"walk-in\": \"walk-in appointments\",\n",
+        "    \"walk in\": \"walk-in appointments\",\n",
+        "}\n",
+        "\n",
+        "def is_action_request(query):\n",
+        "    q = query.lower()\n",
+        "    return any(kw in q for kw in action_request_keywords)\n",
+        "\n",
+        "def find_unconfirmed_specific(query):\n",
+        "    q = query.lower()\n",
+        "    for kw, label in unconfirmed_specifics.items():\n",
+        "        if kw in q:\n",
+        "            return label\n",
+        "    return None\n",
+        "\n",
+        "def respond_week7(query):\n",
+        "    category = classify(query)\n",
+        "    if category == \"emergency\":\n",
+        "        return {\"query\": query, \"response\": \"This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\"}\n",
+        "    elif category == \"medical\":\n",
+        "        return {\"query\": query, \"response\": \"I'm not able to assess symptoms, diagnose conditions, or give medical advice. I'd recommend speaking with a qualified healthcare professional.\"}\n",
+        "\n",
+        "    if is_action_request(query):\n",
+        "        return {\"query\": query, \"response\": \"I'm not able to book, confirm, or make changes to appointments directly — I can only provide information. To actually book or confirm an appointment, please contact clinic reception or use the approved booking platform.\"}\n",
+        "\n",
+        "    q = query.lower()\n",
+        "    is_reminder_question = any(kw in q for kw in reminder_keywords)\n",
+        "\n",
+        "    unconfirmed = find_unconfirmed_specific(query)\n",
+        "    if unconfirmed:\n",
+        "        return {\"query\": query, \"response\": f\"I don't have specific confirmation about {unconfirmed} in what I'm approved to answer from. I'd recommend contacting clinic reception directly to check this.\"}\n",
+        "\n",
+        "    topic = retrieve(query)\n",
+        "    if topic is None:\n",
+        "        if is_reminder_question:\n",
+        "            return {\"query\": query, \"response\": \"Reminder preferences aren't something I can set for you directly, but here's something useful: \" + REMINDER_TIP}\n",
+        "        return {\"query\": query, \"response\": \"I don't have information on that. I'd recommend contacting clinic reception directly.\"}\n",
+        "\n",
+        "    response = \"Here's what I can tell you: \" + knowledge_base[topic][\"patient_text\"]\n",
+        "    if topic == \"booking\" or is_reminder_question:\n",
+        "        response += \" \" + REMINDER_TIP\n",
+        "    return {\"query\": query, \"response\": response}\n",
+        "\n",
+        "print(\"Week 7 respond function ready\")"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "ngduh0GY0w7T",
+        "outputId": "8bcff153-c923-4489-f1ad-e8f623697968"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Week 7 respond function ready\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def respond_week6(query):\n",
+        "    \"\"\"Reproduced for before/after comparison only.\"\"\"\n",
+        "    category = classify(query)\n",
+        "    if category == \"emergency\":\n",
+        "        return {\"response\": \"This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\"}\n",
+        "    elif category == \"medical\":\n",
+        "        return {\"response\": \"I'm not able to assess symptoms, diagnose conditions, or give medical advice. I'd recommend speaking with a qualified healthcare professional.\"}\n",
+        "    q = query.lower()\n",
+        "    is_reminder_question = any(kw in q for kw in reminder_keywords)\n",
+        "    topic = retrieve(query)\n",
+        "    if topic is None:\n",
+        "        if is_reminder_question:\n",
+        "            return {\"response\": \"Reminder preferences aren't something I can set for you directly, but here's something useful: \" + REMINDER_TIP}\n",
+        "        return {\"response\": \"I don't have information on that. I'd recommend contacting clinic reception directly.\"}\n",
+        "    response = \"Here's what I can tell you: \" + knowledge_base[topic][\"patient_text\"]\n",
+        "    if topic == \"booking\" or is_reminder_question:\n",
+        "        response += \" \" + REMINDER_TIP\n",
+        "    return {\"response\": response}\n",
+        "\n",
+        "\n",
+        "print(\"FIX 1: Action vs Information requests\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in [\"Can you book this appointment for me right now?\", \"Please confirm my appointment right now\"]:\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"  BEFORE:\", respond_week6(q)[\"response\"])\n",
+        "    print(\"  AFTER: \", respond_week7(q)[\"response\"])\n",
+        "    print()\n",
+        "\n",
+        "print(\"FIX 2: Unconfirmed specific questions\")\n",
+        "print(\"-\" * 50)\n",
+        "for q in [\"Do you do pediatric consultations?\", \"Can I get a same-day appointment?\"]:\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"  BEFORE:\", respond_week6(q)[\"response\"])\n",
+        "    print(\"  AFTER: \", respond_week7(q)[\"response\"])\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "rVqOJJ771djr",
+        "outputId": "daf3d614-ce33-4ecb-8d59-2d9e45c2d1b8"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "FIX 1: Action vs Information requests\n",
+            "--------------------------------------------------\n",
+            "Q: Can you book this appointment for me right now?\n",
+            "  BEFORE: Here's what I can tell you: You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference. Based on HealthConnect's own appointment data, patients reminded by SMS had the lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) — so it's worth confirming your preferred reminder channel when you book.\n",
+            "  AFTER:  I'm not able to book, confirm, or make changes to appointments directly — I can only provide information. To actually book or confirm an appointment, please contact clinic reception or use the approved booking platform.\n",
+            "\n",
+            "Q: Please confirm my appointment right now\n",
+            "  BEFORE: Here's what I can tell you: You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference. Based on HealthConnect's own appointment data, patients reminded by SMS had the lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) — so it's worth confirming your preferred reminder channel when you book.\n",
+            "  AFTER:  I'm not able to book, confirm, or make changes to appointments directly — I can only provide information. To actually book or confirm an appointment, please contact clinic reception or use the approved booking platform.\n",
+            "\n",
+            "FIX 2: Unconfirmed specific questions\n",
+            "--------------------------------------------------\n",
+            "Q: Do you do pediatric consultations?\n",
+            "  BEFORE: Here's what I can tell you: HealthConnect offers general outpatient consultations, follow-up consultations, selected specialist consultations by appointment, diagnostic and lab services by referral, and preventive wellness consultations.\n",
+            "  AFTER:  I don't have specific confirmation about pediatric or child-specific consultations in what I'm approved to answer from. I'd recommend contacting clinic reception directly to check this.\n",
+            "\n",
+            "Q: Can I get a same-day appointment?\n",
+            "  BEFORE: Here's what I can tell you: You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference. Based on HealthConnect's own appointment data, patients reminded by SMS had the lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) — so it's worth confirming your preferred reminder channel when you book.\n",
+            "  AFTER:  I don't have specific confirmation about same-day appointment availability in what I'm approved to answer from. I'd recommend contacting clinic reception directly to check this.\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "regression_suite = [\n",
+        "    \"What time do you open on Saturday?\",\n",
+        "    \"How do I book an appointment?\",\n",
+        "    \"What should I bring to my appointment?\",\n",
+        "    \"I need to sort out my appointment\",\n",
+        "    \"Can you help me with something?\",\n",
+        "    \"What is the weather like today?\",\n",
+        "    \"I have a fever, what should I do?\",\n",
+        "    \"Can you tell me what is wrong with me?\",\n",
+        "    \"I think I am having a stroke\",\n",
+        "    \"My chest hurts and I cannot breathe\",\n",
+        "    \"How much does a consultation cost?\",\n",
+        "    \"Do you have a location in Ikeja?\",\n",
+        "    \"What time do you open?\",\n",
+        "    \"What are your opening hours?\",\n",
+        "    \"When is the clinic open?\",\n",
+        "    \"Which reminder channel should I use?\",\n",
+        "]\n",
+        "\n",
+        "for q in regression_suite:\n",
+        "    r = respond_week7(q)\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"A:\", r[\"response\"][:80], \"...\")\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "WIGIw8128kt-",
+        "outputId": "ca7e7ab9-ae17-4a09-dec6-df8629e5a2f0"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Q: What time do you open on Saturday?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clin ...\n",
+            "\n",
+            "Q: How do I book an appointment?\n",
+            "A: Here's what I can tell you: You can request an appointment through the booking c ...\n",
+            "\n",
+            "Q: What should I bring to my appointment?\n",
+            "A: Here's what I can tell you: Bring valid ID where required, your appointment refe ...\n",
+            "\n",
+            "Q: I need to sort out my appointment\n",
+            "A: Here's what I can tell you: You can request an appointment through the booking c ...\n",
+            "\n",
+            "Q: Can you help me with something?\n",
+            "A: I don't have information on that. I'd recommend contacting clinic reception dire ...\n",
+            "\n",
+            "Q: What is the weather like today?\n",
+            "A: I don't have information on that. I'd recommend contacting clinic reception dire ...\n",
+            "\n",
+            "Q: I have a fever, what should I do?\n",
+            "A: I'm not able to assess symptoms, diagnose conditions, or give medical advice. I' ...\n",
+            "\n",
+            "Q: Can you tell me what is wrong with me?\n",
+            "A: I'm not able to assess symptoms, diagnose conditions, or give medical advice. I' ...\n",
+            "\n",
+            "Q: I think I am having a stroke\n",
+            "A: This sounds like it could be a medical emergency. Please seek immediate help fro ...\n",
+            "\n",
+            "Q: My chest hurts and I cannot breathe\n",
+            "A: This sounds like it could be a medical emergency. Please seek immediate help fro ...\n",
+            "\n",
+            "Q: How much does a consultation cost?\n",
+            "A: Here's what I can tell you: Payment requirements vary by service. Contact recept ...\n",
+            "\n",
+            "Q: Do you have a location in Ikeja?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clin ...\n",
+            "\n",
+            "Q: What time do you open?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clin ...\n",
+            "\n",
+            "Q: What are your opening hours?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clin ...\n",
+            "\n",
+            "Q: When is the clinic open?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clin ...\n",
+            "\n",
+            "Q: Which reminder channel should I use?\n",
+            "A: Reminder preferences aren't something I can set for you directly, but here's som ...\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "week7_new_cases = [\n",
+        "    \"Book me an appointment for tomorrow\",\n",
+        "    \"How do I book an appointment?\",\n",
+        "    \"Do you have walk-in appointments?\",\n",
+        "    \"What services do you offer?\",\n",
+        "]\n",
+        "\n",
+        "for q in week7_new_cases:\n",
+        "    r = respond_week7(q)\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"A:\", r[\"response\"])\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "U7i5dj9P9Jgv",
+        "outputId": "aa25780b-b678-4ed1-f245-7f970b4166a8"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Q: Book me an appointment for tomorrow\n",
+            "A: I'm not able to book, confirm, or make changes to appointments directly — I can only provide information. To actually book or confirm an appointment, please contact clinic reception or use the approved booking platform.\n",
+            "\n",
+            "Q: How do I book an appointment?\n",
+            "A: Here's what I can tell you: You can request an appointment through the booking channel, reception, or an approved platform. Select location, date and time, provide contact info, review before confirming, and keep your reference. Based on HealthConnect's own appointment data, patients reminded by SMS had the lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) — so it's worth confirming your preferred reminder channel when you book.\n",
+            "\n",
+            "Q: Do you have walk-in appointments?\n",
+            "A: I don't have specific confirmation about walk-in appointments in what I'm approved to answer from. I'd recommend contacting clinic reception directly to check this.\n",
+            "\n",
+            "Q: What services do you offer?\n",
+            "A: Here's what I can tell you: HealthConnect offers general outpatient consultations, follow-up consultations, selected specialist consultations by appointment, diagnostic and lab services by referral, and preventive wellness consultations.\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "final_demo = [\n",
+        "    \"What are your opening hours?\",          # normal\n",
+        "    \"Can you help me with something?\",        # ambiguous\n",
+        "    \"Do you have walk-in appointments?\",      # unavailable-info\n",
+        "    \"What is the weather like today?\",        # unsupported\n",
+        "    \"My chest hurts and I cannot breathe\",    # escalation\n",
+        "]\n",
+        "for q in final_demo:\n",
+        "    r = respond_week7(q)\n",
+        "    print(\"Q:\", q)\n",
+        "    print(\"A:\", r[\"response\"])\n",
+        "    print()"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "g-sDZshnTfiK",
+        "outputId": "628d5580-c678-40d9-8a41-6e036bfa66ea"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Q: What are your opening hours?\n",
+            "A: Here's what I can tell you: HealthConnect Clinic has two locations: Central Clinic at 14 Wellness Avenue, and Lakeside Clinic at 8 Care Street. Open Mon-Fri 8AM-6PM, Sat 9AM-2PM.\n",
+            "\n",
+            "Q: Can you help me with something?\n",
+            "A: I don't have information on that. I'd recommend contacting clinic reception directly.\n",
+            "\n",
+            "Q: Do you have walk-in appointments?\n",
+            "A: I don't have specific confirmation about walk-in appointments in what I'm approved to answer from. I'd recommend contacting clinic reception directly to check this.\n",
+            "\n",
+            "Q: What is the weather like today?\n",
+            "A: I don't have information on that. I'd recommend contacting clinic reception directly.\n",
+            "\n",
+            "Q: My chest hurts and I cannot breathe\n",
+            "A: This sounds like it could be a medical emergency. Please seek immediate help from the appropriate emergency service or your nearest emergency facility right away.\n",
+            "\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
