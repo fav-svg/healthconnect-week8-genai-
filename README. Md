@@ -1,0 +1,132 @@
+# HealthConnect Clinic — AI Assistant (Generative AI Track)
+
+**AnalystLab Africa — Experience Lab Internship Programme**
+**Project:** HealthConnect Clinic Experience Lab
+**Track:** Generative AI
+**Author:** Unije Chidera Favour
+
+> This repository contains the **Week 8 final integration and presentation deliverables** only. It continues directly from Week 4–7 work (design, prototype, cross-track integration, testing and refinement) found in the main project repository: `analystlab-healthconnect`. This is a submission-organization choice, not a new or restarted HealthConnect project.
+
+---
+
+## Project Overview
+
+HealthConnect Clinic is a fictional healthcare provider seeking to reduce missed appointments, improve patient appointment attendance, make better use of available appointment slots, and provide more effective administrative support.
+
+**Business question:** How can HealthConnect Clinic use data and AI to reduce missed appointments and improve the patient support experience?
+
+This repository documents the Generative AI track's contribution: an AI assistant that answers patient questions using a defined Knowledge Base, stays within safe boundaries around medical advice and emergencies, and supports HealthConnect's no-show reduction goal through data-informed reminder guidance.
+
+---
+
+## Weekly Progression
+
+| Week | Focus | Output |
+|---|---|---|
+| **Week 4** | Problem understanding, resource review, solution planning | AI Assistant Design Document, Week 4 Project Summary, Sample Assistant Conversations |
+| **Week 5** | Initial implementation | Working prototype: classification → retrieval → response, grounded in the HealthConnect Knowledge Base. Found and fixed two safety gaps (internal-instruction leak, missed emergency escalation) |
+| **Week 6** | Integration, advanced development, validation | Added a reminder-channel feature built on real Data Analytics findings (cross-track collaboration with Data Analytics) |
+| **Week 7** | Testing, refinement, end-to-end validation | Fixed two carried-forward weaknesses (action-vs-information handling, vague answers to unconfirmed questions); self-audited and corrected an overstated data claim; ran full regression testing |
+| **Week 8** | Final integration, presentation, showcase | Final safety validation, documented limitations, 5-scenario demo, HC-POD cross-track integration write-up, individual presentation |
+
+---
+
+## How the Assistant Works
+
+The assistant follows a classify → route → respond pipeline:
+
+1. **`classify(query)`** sorts each incoming query into `emergency`, `medical`, or general categories.
+2. **Emergency queries** (e.g. "I think I am having a stroke") return an immediate escalation message directing the patient to emergency services.
+3. **Medical queries** (e.g. symptom or diagnosis questions) are refused, with a redirect to a qualified healthcare professional. The assistant never diagnoses or gives medical advice.
+4. **All other queries** are passed to **`retrieve(query)`**, which matches the query to a topic in the HealthConnect Knowledge Base.
+   - If a topic is found, the assistant responds using the KB's `patient_text` for that topic.
+   - If no topic is found, the assistant declines rather than guessing, and redirects to clinic reception.
+5. **Reminder-related queries** (or booking-topic queries) additionally receive a `REMINDER_TIP`: a data-backed recommendation that SMS reminders had the lowest no-show rate of any channel tested (45.8%, vs. 51.4% with no reminder at all) — sourced from the Data Analytics track's findings.
+
+---
+
+## Week 7 → Week 8 Fixes
+
+### Fix 1: Action vs. Information Requests
+**Before:** Action requests (e.g. "book this appointment for me right now") were misclassified as information requests and answered as if the assistant could process the booking.
+**After:** Action requests are now correctly identified and refused, with a redirect to reception or the approved booking platform. Genuine information requests ("How do I book an appointment?") still receive full KB-grounded answers.
+
+### Fix 2: Unconfirmed Specific Questions
+**Before:** Questions about details not explicitly confirmed in the KB (e.g. pediatric consultations, same-day availability) triggered overconfident answers pulled from adjacent KB content.
+**After:** The assistant explicitly states when something isn't confirmed in what it's approved to answer from, and redirects to reception — rather than inferring or guessing.
+
+Both fixes were validated for consistency across multiple phrasings (see `Final Test Results` below).
+
+---
+
+## Final Test Results
+
+Testing covered three rounds:
+
+1. **Before/after fix comparison** — 4 queries directly demonstrating both fixes.
+2. **Regression suite** — 16 queries covering KB-grounded info, medical refusals, emergency escalation, reminder guidance, and off-topic/ambiguous queries.
+3. **Consistency check** — 4 new-phrasing queries confirming the fixes generalize rather than being overfit to the original test cases.
+
+Key results:
+- KB-grounded topics answered consistently regardless of phrasing (e.g. 4 different "opening hours" phrasings all returned the same grounded answer).
+- Medical queries consistently triggered the refusal-and-refer response.
+- Emergency queries consistently triggered escalation.
+- Action requests were consistently refused and redirected; information requests were consistently answered.
+
+Full query/response evidence is included in the Week 8 Colab notebook and safety package document.
+
+---
+
+## Safety Validation
+
+| Safeguard | Validation |
+|---|---|
+| **No medical advice** | Symptom/diagnosis queries consistently refused, with redirect to a qualified professional |
+| **Emergency escalation** | Emergency-pattern queries (stroke, chest pain/breathing difficulty) consistently routed to a distinct urgent-escalation message, separate from the general medical refusal |
+| **No invented clinic information** | Unconfirmed KB queries explicitly declined rather than answered from inference — anti-hallucination safeguard |
+| **Action boundary** | Assistant never implies it booked, confirmed, or modified an appointment; always redirects real actions to reception/the booking platform |
+
+---
+
+## Known Limitations
+
+1. **Ambiguous vs. unsupported requests are not distinguished.** A genuinely vague query (e.g. "Can you help me with something?") currently receives the same generic fallback as a clearly off-topic query (e.g. "What is the weather like today?"). Ideal behavior would ask a clarifying question instead of a blanket decline.
+2. **No live/dynamic data access.** The assistant is grounded in a static Knowledge Base and cannot confirm real-time information (e.g. actual current appointment availability).
+3. **No transaction capability.** The assistant only informs — it cannot book, confirm, reschedule, or cancel appointments. All actual transactions require human handoff to reception.
+4. **Reminder guidance is advisory only.** The assistant can recommend a reminder channel but cannot set or change a patient's actual reminder preference.
+
+---
+
+## Cross-Track Collaboration (HC-POD Integration)
+
+**Data Analytics → GenAI:** Received validated no-show/reminder-channel findings from the Data Analytics track (SMS reminders: 45.8% no-show rate vs. 51.4% with no reminder). Integrated this into the assistant's `REMINDER_TIP` feature.
+
+**GenAI → Project Management:** Provided final supported/out-of-scope use cases, safety validation results, known limitations, and the 5-scenario demo script for inclusion in the HC-POD's final integration walkthrough and presentation.
+
+---
+
+## Repository Structure
+
+```
+healthconnect-week8-genai/
+├── healthconnect_genai_week8.ipynb
+├── final_test_results.md
+├── safety_validation.md
+├── known_limitations.md
+├── hc_pod_integration.md
+└── README.md
+```
+
+---
+
+## Project Resources (Approved)
+
+- `HealthConnect_Appointment_Data.csv`
+- `HealthConnect_Data_Dictionary.xlsx`
+- `HealthConnect_Clinic_Knowledge_Base.docx`
+
+Original resources are not overwritten; processed/transformed files are kept separate and documented per week.
+
+---
+
+*Built as part of the AnalystLab Africa Experience Lab Internship Programme. #AnalystLabAfrica*
